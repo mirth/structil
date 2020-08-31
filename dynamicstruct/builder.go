@@ -82,17 +82,19 @@ type Builder interface {
 
 // BuilderImpl is the default Builder implementation.
 type BuilderImpl struct {
-	fields map[string]reflect.Type
-	tags   map[string]reflect.StructTag
-	name   string
+	fields      map[string]reflect.Type
+	fieldsOrder []string
+	tags        map[string]reflect.StructTag
+	name        string
 }
 
 // NewBuilder returns a concrete Builder
 func NewBuilder() Builder {
 	return &BuilderImpl{
-		fields: map[string]reflect.Type{},
-		tags:   map[string]reflect.StructTag{},
-		name:   defaultStructName,
+		fields:      map[string]reflect.Type{},
+		fieldsOrder: []string{},
+		tags:        map[string]reflect.StructTag{},
+		name:        defaultStructName,
 	}
 }
 
@@ -451,12 +453,26 @@ func (b *BuilderImpl) add(p *addParam) {
 	}
 
 	b.fields[p.name] = typeOf
+	b.fieldsOrder = append(b.fieldsOrder, p.name)
 	b.tags[p.name] = reflect.StructTag(p.tag)
+}
+
+func find(a []string, x string) int {
+	for i, n := range a {
+		if x == n {
+			return i
+		}
+	}
+	return -1
 }
 
 // Remove returns a Builder that was removed a field named by name parameter.
 func (b *BuilderImpl) Remove(name string) Builder {
 	delete(b.fields, name)
+
+	i := find(b.fieldsOrder, name)
+	b.fieldsOrder = append(b.fieldsOrder[:i], b.fieldsOrder[i+1:]...)
+
 	return b
 }
 
@@ -495,7 +511,8 @@ func (b *BuilderImpl) BuildNonPtr() DynamicStruct {
 func (b *BuilderImpl) build(isPtr bool) DynamicStruct {
 	var i int
 	fields := make([]reflect.StructField, len(b.fields))
-	for name, typ := range b.fields {
+	for _, name := range b.fieldsOrder {
+		typ, _ := b.fields[name]
 		fields[i] = reflect.StructField{
 			Name: name,
 			Type: typ,
